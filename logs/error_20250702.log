@@ -1,0 +1,6 @@
+2025-07-02 23:22:12 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
+2025-07-02 23:25:49 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
+2025-07-02 23:26:19 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
+2025-07-02 23:28:21 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
+2025-07-02 23:29:31 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
+2025-07-02 23:29:32 [ERROR] services.video_processor:285: 清理视频处理器资源失败: sys.meta_path is None, Python is likely shutting down
