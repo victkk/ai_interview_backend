@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI面试系统 - WebSocket测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .video-container {
+        width: 100%;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      video {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      button {
+        padding: 10px 15px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+      .status {
+        padding: 10px;
+        background-color: #f8f8f8;
+        border-radius: 4px;
+      }
+      .log-container {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        height: 200px;
+        overflow-y: auto;
+        background-color: #f5f5f5;
+      }
+      .log-entry {
+        margin-bottom: 5px;
+        padding: 5px;
+        border-bottom: 1px solid #eee;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .input-group {
+        margin-bottom: 10px;
+      }
+      .input-group label {
+        display: block;
+        margin-bottom: 5px;
+      }
+      .input-group input {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 70%;
+      }
+      .stat {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>AI面试系统 - WebSocket测试</h1>
+
+      <div class="input-group">
+        <label for="server-url">WebSocket服务器地址:</label>
+        <input
+          type="text"
+          id="server-url"
+          value="ws://localhost:8000/ws/video-stream/"
+          style="width: 300px"
+        />
+      </div>
+
+      <div class="input-group">
+        <label for="session-id">会话ID:</label>
+        <input
+          type="text"
+          id="session-id"
+          placeholder="输入会话ID或自动生成"
+          style="width: 300px"
+        />
+        <button id="generate-id">生成ID</button>
+      </div>
+
+      <div class="controls">
+        <button id="connect-btn">连接WebSocket</button>
+        <button id="start-btn" disabled>开始视频流</button>
+        <button id="stop-btn" disabled>停止视频流</button>
+        <button id="disconnect-btn" disabled>断开连接</button>
+      </div>
+
+      <div class="status" id="connection-status">连接状态: 未连接</div>
+
+      <div class="video-container">
+        <video id="video-preview" autoplay muted></video>
+        <div class="stat" id="video-stats">视频未启动</div>
+      </div>
+
+      <h3>服务器响应:</h3>
+      <div class="log-container" id="message-log">
+        <div class="log-entry">等待消息...</div>
+      </div>
+    </div>
+
+    <script>
+      // DOM元素
+      const serverUrlInput = document.getElementById("server-url");
+      const sessionIdInput = document.getElementById("session-id");
+      const generateIdBtn = document.getElementById("generate-id");
+      const connectBtn = document.getElementById("connect-btn");
+      const startBtn = document.getElementById("start-btn");
+      const stopBtn = document.getElementById("stop-btn");
+      const disconnectBtn = document.getElementById("disconnect-btn");
+      const connectionStatus = document.getElementById("connection-status");
+      const videoElement = document.getElementById("video-preview");
+      const messageLog = document.getElementById("message-log");
+      const videoStats = document.getElementById("video-stats");
+
+      // 全局变量
+      let websocket = null;
+      let mediaStream = null;
+      let mediaRecorder = null;
+      let isRecording = false;
+      let sentBytes = 0;
+      let messageCount = 0;
+      let startTime = null;
+
+      // 生成随机会话ID
+      generateIdBtn.addEventListener("click", () => {
+        const randomId =
+          "session_" + Math.random().toString(36).substring(2, 10);
+        sessionIdInput.value = randomId;
+      });
+
+      // 自动生成一个初始会话ID
+      generateIdBtn.click();
+
+      // 连接WebSocket
+      connectBtn.addEventListener("click", () => {
+        if (websocket) {
+          logMessage("已经存在连接，请先断开");
+          return;
+        }
+
+        const serverUrl = serverUrlInput.value.trim();
+        const sessionId = sessionIdInput.value.trim();
+
+        if (!serverUrl || !sessionId) {
+          logMessage("错误: 服务器地址和会话ID不能为空");
+          return;
+        }
+
+        const fullUrl = serverUrl.endsWith("/")
+          ? serverUrl + sessionId
+          : serverUrl + "/" + sessionId;
+
+        try {
+          logMessage(`正在连接到 ${fullUrl}...`);
+          websocket = new WebSocket(fullUrl);
+
+          websocket.onopen = function (e) {
+            connectionStatus.textContent = `连接状态: 已连接 (${sessionId})`;
+            connectionStatus.style.backgroundColor = "#d4edda";
+            connectBtn.disabled = true;
+            startBtn.disabled = false;
+            disconnectBtn.disabled = false;
+            logMessage("WebSocket连接已建立");
+
+            // 重置统计数据
+            sentBytes = 0;
+            messageCount = 0;
+            startTime = new Date();
+          };
+
+          websocket.onmessage = function (event) {
+            try {
+              const message = JSON.parse(event.data);
+              messageCount++;
+
+              // 格式化JSON以便更好地显示
+              const formattedJson = JSON.stringify(message, null, 2);
+              logMessage(
+                `收到消息 #${messageCount}:<pre>${formattedJson}</pre>`
+              );
+
+              // 更新统计信息
+              updateStats();
+            } catch (e) {
+              logMessage(`收到非JSON消息: ${event.data}`);
+            }
+          };
+
+          websocket.onclose = function (event) {
+            connectionStatus.textContent = "连接状态: 已断开";
+            connectionStatus.style.backgroundColor = "#f8f8f8";
+            connectBtn.disabled = false;
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
+            disconnectBtn.disabled = true;
+            logMessage(
+              `WebSocket连接已关闭，代码: ${event.code}，原因: ${
+                event.reason || "未提供"
+              }`
+            );
+            websocket = null;
+          };
+
+          websocket.onerror = function (error) {
+            connectionStatus.style.backgroundColor = "#f8d7da";
+            logMessage("WebSocket错误，请检查控制台获取详细信息");
+            console.error("WebSocket错误:", error);
+          };
+        } catch (error) {
+          logMessage("连接错误: " + error.message);
+        }
+      });
+
+      // 开始视频流
+      startBtn.addEventListener("click", async () => {
+        if (!websocket) {
+          logMessage("错误: WebSocket未连接");
+          return;
+        }
+
+        try {
+          // 请求摄像头权限
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 15 },
+            },
+            audio: true,
+          });
+
+          // 显示预览
+          videoElement.srcObject = mediaStream;
+
+          // 检查支持的MIME类型
+          const mimeTypes = [
+            "video/webm; codecs=vp9",
+            "video/webm; codecs=vp8",
+            "video/webm",
+            "video/mp4",
+          ];
+
+          let options = { mimeType: "video/webm" };
+          for (const type of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(type)) {
+              options.mimeType = type;
+              logMessage(`使用编码: ${type}`);
+              break;
+            }
+          }
+
+          // 设置MediaRecorder
+          mediaRecorder = new MediaRecorder(mediaStream, options);
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (
+              event.data.size > 0 &&
+              websocket &&
+              websocket.readyState === WebSocket.OPEN
+            ) {
+              websocket.send(event.data);
+              sentBytes += event.data.size;
+              updateStats();
+            }
+          };
+
+          // 开始录制，每500ms发送一次数据
+          mediaRecorder.start(500);
+          isRecording = true;
+          startTime = new Date();
+
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+          logMessage("视频流已开始");
+        } catch (error) {
+          logMessage("启动视频流错误: " + error.message);
+        }
+      });
+
+      // 停止视频流
+      stopBtn.addEventListener("click", () => {
+        if (mediaRecorder && isRecording) {
+          mediaRecorder.stop();
+          isRecording = false;
+
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((track) => track.stop());
+            videoElement.srcObject = null;
+            mediaStream = null;
+          }
+
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          logMessage("视频流已停止");
+          videoStats.textContent = "视频已停止";
+        }
+      });
+
+      // 断开WebSocket连接
+      disconnectBtn.addEventListener("click", () => {
+        if (isRecording) {
+          stopBtn.click();
+        }
+
+        if (websocket) {
+          websocket.close();
+          websocket = null;
+          connectionStatus.textContent = "连接状态: 未连接";
+          connectionStatus.style.backgroundColor = "#f8f8f8";
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          logMessage("WebSocket连接已断开");
+        }
+      });
+
+      // 添加日志消息
+      function logMessage(message) {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+
+        const timestamp = new Date().toLocaleTimeString();
+        entry.innerHTML = `<strong>${timestamp}</strong>: ${message}`;
+
+        messageLog.appendChild(entry);
+        messageLog.scrollTop = messageLog.scrollHeight;
+      }
+
+      // 更新统计信息
+      function updateStats() {
+        if (!startTime) return;
+
+        const now = new Date();
+        const elapsedSeconds = (now - startTime) / 1000;
+        const bytesPerSecond = sentBytes / elapsedSeconds;
+        const kbps = ((bytesPerSecond * 8) / 1024).toFixed(2);
+
+        videoStats.textContent = `已发送: ${formatBytes(
+          sentBytes
+        )} | 速率: ${kbps} kbps | 消息: ${messageCount}`;
+      }
+
+      // 格式化字节数
+      function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return "0 Bytes";
+
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ["Bytes", "KB", "MB", "GB"];
+
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        return (
+          parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i]
+        );
+      }
+    </script>
+  </body>
+</html>
