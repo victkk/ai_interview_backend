@@ -1,6 +1,7 @@
 import logging
 import logging.config
 import os
+import sys
 from datetime import datetime
 
 
@@ -42,6 +43,7 @@ def setup_logger():
                 "filename": f'{logs_dir}/ai_interview_{datetime.now().strftime("%Y%m%d")}.log',
                 "maxBytes": 10485760,  # 10MB
                 "backupCount": 5,
+                "encoding": "utf-8",  # 明确指定文件编码
             },
             "error_file": {
                 "level": "ERROR",
@@ -50,6 +52,7 @@ def setup_logger():
                 "filename": f'{logs_dir}/error_{datetime.now().strftime("%Y%m%d")}.log',
                 "maxBytes": 10485760,  # 10MB
                 "backupCount": 5,
+                "encoding": "utf-8",  # 明确指定文件编码
             },
         },
         "loggers": {
@@ -73,6 +76,14 @@ def setup_logger():
 
     # 应用日志配置
     logging.config.dictConfig(logging_config)
+
+    # 为了解决Windows系统上的编码问题，我们需要确保stdout使用UTF-8编码
+    # 如果stdout不支持UTF-8，我们创建一个包装器
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
     # 获取根logger并记录启动信息
     logger = logging.getLogger(__name__)

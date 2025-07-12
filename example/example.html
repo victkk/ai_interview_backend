@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI面试系统 - 测试前端</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 20px;
+        background-color: #f4f7f9;
+        color: #333;
+      }
+      .container {
+        display: flex;
+        gap: 30px;
+        width: 100%;
+        max-width: 1200px;
+      }
+      .controls,
+      .logs {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      }
+      .controls {
+        flex: 1;
+      }
+      .logs {
+        flex: 2;
+        height: 80vh;
+        display: flex;
+        flex-direction: column;
+      }
+      h1,
+      h2 {
+        border-bottom: 2px solid #eef;
+        padding-bottom: 10px;
+        margin-top: 0;
+      }
+      button {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-right: 10px;
+      }
+      button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      button:hover:not(:disabled) {
+        background-color: #0056b3;
+      }
+      #log-container {
+        flex-grow: 1;
+        background-color: #2d3748;
+        color: #f7fafc;
+        padding: 15px;
+        border-radius: 5px;
+        overflow-y: auto;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 14px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .status {
+        margin: 15px 0;
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #f0f0f0;
+      }
+      .status-light {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      .disconnected {
+        background-color: #e53e3e;
+      }
+      .connected {
+        background-color: #48bb78;
+      }
+      video {
+        width: 100%;
+        border-radius: 8px;
+        background-color: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="controls">
+        <h1>控制面板</h1>
+        <button id="startInterviewBtn">1. 开始面试</button>
+        <div class="status">
+          <strong>会话ID:</strong> <span id="sessionId">N/A</span>
+        </div>
+        <div class="status">
+          <span id="audioStatusLight" class="status-light disconnected"></span>
+          <strong>音频通道:</strong> <span id="audioStatus">未连接</span>
+        </div>
+        <div class="status">
+          <span id="videoStatusLight" class="status-light disconnected"></span>
+          <strong>视频通道:</strong> <span id="videoStatus">未连接</span>
+        </div>
+
+        <h2>视频预览</h2>
+        <video id="localVideo" autoplay muted playsinline></video>
+
+        <button id="toggleStreamBtn" disabled>2. 开始传输</button>
+      </div>
+      <div class="logs">
+        <h2>实时日志</h2>
+        <div id="log-container"></div>
+      </div>
+    </div>
+
+    <script>
+      // --- DOM Elements ---
+      const startInterviewBtn = document.getElementById("startInterviewBtn");
+      const toggleStreamBtn = document.getElementById("toggleStreamBtn");
+      const sessionIdSpan = document.getElementById("sessionId");
+      const audioStatusSpan = document.getElementById("audioStatus");
+      const videoStatusSpan = document.getElementById("videoStatus");
+      const audioStatusLight = document.getElementById("audioStatusLight");
+      const videoStatusLight = document.getElementById("videoStatusLight");
+      const localVideo = document.getElementById("localVideo");
+      const logContainer = document.getElementById("log-container");
+
+      // --- State ---
+      let sessionId = null;
+      let audioSocket = null;
+      let videoSocket = null;
+      let localStream = null;
+      let videoFrameInterval = null;
+      let isStreaming = false;
+      let audioContext = null;
+      let audioWorkletNode = null;
+      let audioSource = null;
+
+      // --- Backend URL ---
+      const API_BASE_URL = "http://localhost:8000";
+      const WS_BASE_URL = "ws://localhost:8000";
+
+      // --- Functions ---
+      function log(message, type = "info") {
+        const now = new Date().toLocaleTimeString();
+        const colorMap = {
+          info: "#a0aec0",
+          success: "#48bb78",
+          error: "#f56565",
+          ws: "#4299e1",
+        };
+        logContainer.innerHTML += `<span style="color:${colorMap[type]};">[${now}] ${message}</span>\n`;
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+
+      async function startInterview() {
+        log("正在请求创建新会话...");
+        try {
+          const response = await fetch(`${API_BASE_URL}/interviews/start`, {
+            method: "POST",
+          });
+          if (!response.ok) throw new Error(`服务器错误: ${response.status}`);
+
+          const data = await response.json();
+          sessionId = data.session_id;
+
+          sessionIdSpan.textContent = sessionId;
+          log(`会话创建成功: ${sessionId}`, "success");
+
+          startInterviewBtn.disabled = true;
+          connectWebSockets();
+          toggleStreamBtn.disabled = false;
+        } catch (error) {
+          log(`创建会话失败: ${error.message}`, "error");
+        }
+      }
+
+      function connectWebSockets() {
+        if (!sessionId) {
+          log("无法连接WebSocket，缺少会话ID", "error");
+          return;
+        }
+
+        const audioUrl = `${WS_BASE_URL}/ws/audio/${sessionId}`;
+        audioSocket = new WebSocket(audioUrl);
+        audioSocket.onopen = () => {
+          audioStatusSpan.textContent = "已连接";
+          audioStatusLight.className = "status-light connected";
+          log("音频WebSocket已连接", "success");
+        };
+        audioSocket.onclose = () => {
+          audioStatusSpan.textContent = "已断开";
+          audioStatusLight.className = "status-light disconnected";
+          log("音频WebSocket已断开", "error");
+        };
+        audioSocket.onerror = (err) => log("音频WebSocket错误", "error");
+        audioSocket.onmessage = (event) =>
+          log(`服务器消息 (音频): ${event.data}`, "ws");
+
+        const videoUrl = `${WS_BASE_URL}/ws/video/${sessionId}`;
+        videoSocket = new WebSocket(videoUrl);
+        videoSocket.onopen = () => {
+          videoStatusSpan.textContent = "已连接";
+          videoStatusLight.className = "status-light connected";
+          log("视频WebSocket已连接", "success");
+        };
+        videoSocket.onclose = () => {
+          videoStatusSpan.textContent = "已断开";
+          videoStatusLight.className = "status-light disconnected";
+          log("视频WebSocket已断开", "error");
+        };
+        videoSocket.onerror = (err) => log("视频WebSocket错误", "error");
+        videoSocket.onmessage = (event) =>
+          log(`服务器消息 (视频): ${event.data}`, "ws");
+      }
+
+      async function toggleStreaming() {
+        if (isStreaming) {
+          // Stop streaming
+          if (videoFrameInterval) {
+            clearInterval(videoFrameInterval);
+            videoFrameInterval = null;
+          }
+          if (audioContext) {
+            await audioContext.close();
+            audioContext = null;
+            log("音频上下文已关闭");
+          }
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+            localVideo.srcObject = null;
+          }
+          isStreaming = false;
+          toggleStreamBtn.textContent = "2. 开始传输";
+          log("数据传输已停止");
+        } else {
+          // Start streaming
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+              },
+            });
+            localVideo.srcObject = localStream;
+            log("已获取本地摄像头和麦克风权限", "success");
+
+            await startAudioWorklet();
+
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            videoFrameInterval = setInterval(() => {
+              if (videoSocket && videoSocket.readyState === WebSocket.OPEN) {
+                canvas.width = localVideo.videoWidth;
+                canvas.height = localVideo.videoHeight;
+                context.drawImage(
+                  localVideo,
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height
+                );
+                const frameData = canvas.toDataURL("image/jpeg", 0.7);
+                const message = `${Date.now()}:${frameData}`;
+                videoSocket.send(message);
+              }
+            }, 200);
+
+            isStreaming = true;
+            toggleStreamBtn.textContent = "停止传输";
+            log("数据传输已开始");
+          } catch (error) {
+            log(`无法开始传输: ${error.message}`, "error");
+          }
+        }
+      }
+
+      async function startAudioWorklet() {
+        if (
+          !localStream ||
+          !audioSocket ||
+          audioSocket.readyState !== WebSocket.OPEN
+        ) {
+          log("无法启动音频工作站：缺少媒体流或WebSocket未连接", "error");
+          return;
+        }
+
+        try {
+          audioContext = new AudioContext({ sampleRate: 16000 });
+
+          // Load the processor from an external file
+          await audioContext.audioWorklet.addModule(
+            "/static/audio-processor.js"
+          );
+
+          audioSource = audioContext.createMediaStreamSource(localStream);
+          audioWorkletNode = new AudioWorkletNode(
+            audioContext,
+            "audio-recorder-processor"
+          );
+
+          audioWorkletNode.port.onmessage = (event) => {
+            if (audioSocket && audioSocket.readyState === WebSocket.OPEN) {
+              audioSocket.send(event.data);
+            }
+          };
+
+          audioSource
+            .connect(audioWorkletNode)
+            .connect(audioContext.destination);
+          log("音频处理工作站已启动");
+        } catch (error) {
+          log(`启动音频工作站失败: ${error}`, "error");
+        }
+      }
+
+      // --- Event Listeners ---
+      startInterviewBtn.addEventListener("click", startInterview);
+      toggleStreamBtn.addEventListener("click", toggleStreaming);
+
+      window.addEventListener("beforeunload", () => {
+        if (audioSocket) audioSocket.close();
+        if (videoSocket) videoSocket.close();
+        if (isStreaming) {
+          toggleStreaming();
+        }
+      });
+    </script>
+  </body>
+</html>
