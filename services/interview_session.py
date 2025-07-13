@@ -43,15 +43,17 @@ class InterviewSession:
         3. 打包数据，调用LLM(留给wjq实现)
         4. 结果处理（尚未分锅）
         """
-        # todo @wjq 在别的地方实现一个ai接口类 调用模型的逻辑写在类里 这里只负责将拿到的语音转写文字和图像整合
+        # todo @wjq 在别的地方实现一个ai接口类(可以改ai_service 也可以删了它自己写) 调用模型的逻辑写在类里 这里只将拿到的语音转写文字和图像整合
         while self.is_active:
             try:
                 sentence = await self.audio_results_queue.get()
                 print(f"[{self.session_id}] 获取到音频转写的句子: {sentence}")
                 self.audio_results_queue.task_done()
+                # sentence and img shall be passed to an ai_service
+                # ai_service should be an attribute of this class(just like audio_processor)
                 timestamp, base64_img = self.video_buffer.pop()
                 img = base64_to_image(base64_img)
-                
+
             except asyncio.CancelledError:
                 break
         print(f"[{self.session_id}] Integrator logic stopped.")
