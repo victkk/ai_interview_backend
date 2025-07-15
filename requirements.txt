@@ -22,3 +22,4 @@ scipy==1.15.2
 openwakeword>=0.4.0
 websocket-client==1.8.0
 soundfile==0.13.1
+pillow

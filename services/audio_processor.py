@@ -6,6 +6,7 @@ from opencc import OpenCC
 from RealtimeSTT import AudioToTextRecorder
 import numpy as np
 from scipy.signal import resample
+from services.shared_model import SharedRecorder
 
 
 class AudioProcessor:
@@ -14,20 +15,6 @@ class AudioProcessor:
         self.main_loop = loop  # 保存主线程的事件循环引用
         self.cc = OpenCC("t2s")
         self.is_running = True
-
-        recorder_config = {
-            "spinner": False,
-            "use_microphone": False,
-            "model": "large",
-            "language": "zh",
-            "silero_sensitivity": 0.4,
-            "webrtc_sensitivity": 2,
-            "post_speech_silence_duration": 0.7,
-            "min_length_of_recording": 0,
-            "min_gap_between_recordings": 0,
-            "enable_realtime_transcription": False,  # 我们只关心最终结果
-        }
-        self.recorder = AudioToTextRecorder(**recorder_config)
 
         # 启动后台处理线程
         self.processing_thread = threading.Thread(target=self._process_text)
@@ -39,7 +26,11 @@ class AudioProcessor:
         while self.is_running:
             try:
                 # recorder.text() 是一个阻塞操作，正好符合我们的需求
-                full_sentence = self.recorder.text()
+                future = asyncio.run_coroutine_threadsafe(
+                    SharedRecorder.transcribe(),
+                    self.main_loop,
+                )
+                full_sentence = future.result()
                 if full_sentence:
                     simplified_sentence = self.cc.convert(full_sentence)
                     print(f"[AudioProcessor] Detected Sentence: {simplified_sentence}")
@@ -59,11 +50,11 @@ class AudioProcessor:
         # 我这里直接假设客户端发送的就是16-bit PCM了
         # 有人写了重采样 没看懂 修
         # todo： @hyq
-        self.recorder.feed_audio(chunk)
+        SharedRecorder.feed_audio(chunk)
 
     def stop(self):
         """停止处理器"""
         self.is_running = False
-        self.recorder.stop()
+        SharedRecorder.stop()
         if self.processing_thread.is_alive():
             self.processing_thread.join(timeout=2.0)

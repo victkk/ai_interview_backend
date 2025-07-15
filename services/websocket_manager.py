@@ -2,13 +2,14 @@ from fastapi import WebSocket
 from typing import Dict, List, Optional
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from models.schemas import VideoStreamData
 from services.ai_service import AIService
 from services.interview_session import InterviewSession
 
 
 logger = logging.getLogger(__name__)
+SESSION_TIMEOUT = timedelta(minutes=2)
 
 
 class WebSocketManager:
@@ -27,6 +28,7 @@ class WebSocketManager:
         logger.info(f"started new session:{session_id}")
 
     async def connect_audio(self, websocket: WebSocket, session_id: str):
+        logger.info("进入 connect_audio")
         if session_id not in self.sessions.keys():
             raise ValueError(f"session_id:{session_id} not found")
         await websocket.accept()
@@ -60,12 +62,14 @@ class WebSocketManager:
         if session_id not in self.sessions.keys():
             raise ValueError(f"session_id:{session_id} not found")
         self.sessions[session_id].audio_processor.feed_audio(audio_data)
+        self.sessions[session_id].last_active_time = datetime.now()
         return True
 
     def feed_frame(self, session_id: str, frame_data: str, timestamp: str):
         if session_id not in self.sessions.keys():
             raise ValueError(f"session_id:{session_id} not found")
         self.sessions[session_id].video_buffer.append((float(timestamp), frame_data))
+        self.sessions[session_id].last_active_time = datetime.now()
         return True
 
     @DeprecationWarning
@@ -170,3 +174,18 @@ class WebSocketManager:
             await self.sessions[session_id].cleanup()
             del self.sessions[session_id]
             logger.info(f"会话数据已清理: session_id={session_id}")
+
+    async def _session_cleanup_loop(self):
+        while True:
+            now = datetime.now()
+            to_remove = []
+            for session_id, session in list(self.sessions.items()):
+                if hasattr(session, "last_active_time") and now - session.last_active_time > SESSION_TIMEOUT:
+                    to_remove.append(session_id)
+            for session_id in to_remove:
+                try:
+                    await self.cleanup_session(session_id)
+                    logger.info(f"[AutoCleanup] 清理超时未活跃 session: {session_id}")
+                except Exception as e:
+                    logger.error(f"[AutoCleanup] 清理失败 {session_id}: {e}")
+            await asyncio.sleep(30)  # 每 30 秒检查一次

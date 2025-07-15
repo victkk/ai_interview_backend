@@ -10,6 +10,7 @@ from routers import interview, ai_processing
 from services.websocket_manager import WebSocketManager
 from utils.logger import setup_logger
 import uuid
+import asyncio
 
 # 设置编码（解决Windows系统上的Unicode问题）
 if sys.platform.startswith("win"):
@@ -36,6 +37,10 @@ app.add_middleware(
 )
 
 websocket_manager = WebSocketManager()
+
+@app.on_event("startup")
+async def start_session_cleanup():
+    asyncio.create_task(websocket_manager._session_cleanup_loop())
 
 # 挂载静态文件目录
 app.mount("/static", StaticFiles(directory="example"), name="static")
