@@ -1,12 +1,12 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
-pydantic==2.5.0
+pydantic
 ffmpeg-python==0.2.0
-python-socketio==5.10.0
-aiofiles==23.2.1
-asyncio==3.4.3
-numpy==1.24.3
+python-socketio
+aiofiles
+asyncio
+numpy
 python-json-logger==2.0.7
 PyYAML==6.0.1 
 RealtimeSTT==0.3.104
@@ -18,6 +18,9 @@ webrtcvad-wheels==2.0.14
 halo==0.0.31
 torch
 torchaudio
+# 新增依赖
+aiohttp==3.9.1
+tenacity==8.2.3
 scipy==1.15.2
 openwakeword>=0.4.0
 websocket-client==1.8.0
