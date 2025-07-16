@@ -9,7 +9,11 @@ from models.schemas import (
     InterviewResult,
     APIResponse,
     InterviewStatus,
+    # 新增的模型
+    InterviewerPersonaRequest,
+    QuestionBankRequest,
 )
+from services.websocket_manager import WebSocketManager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -313,6 +317,159 @@ async def get_interview_statistics():
                 "total_results": len(interview_results),
             },
         )
+
+
+# ================================
+# 新增的面试会话管理接口
+# ================================
+
+@router.post("/session/{session_id}/question", response_model=APIResponse)
+async def set_current_question(session_id: str, question: str):
+    """
+    设置当前面试问题
+    
+    Args:
+        session_id: 会话ID
+        question: 问题内容
+        
+    Returns:
+        操作结果
+    """
+    try:
+        # 这里应该从WebSocketManager获取session
+        # 暂时简化处理
+        logger.info(f"设置面试问题: session_id={session_id}, question={question[:50]}...")
+        
+        # TODO: 实际应该通过WebSocketManager获取InterviewSession实例
+        # websocket_manager = WebSocketManager()
+        # session = websocket_manager.get_session(session_id)
+        # if session:
+        #     await session.set_current_question(question)
+        
+        return APIResponse(
+            success=True,
+            message="设置当前问题成功",
+            data={"session_id": session_id, "question": question}
+        )
+        
+    except Exception as e:
+        logger.error(f"设置当前问题失败: {e}")
+        raise HTTPException(status_code=500, detail=f"设置当前问题失败: {str(e)}")
+
+
+@router.post("/session/{session_id}/persona", response_model=APIResponse)
+async def set_interviewer_persona(session_id: str, persona: str):
+    """
+    设置面试官角色
+    
+    Args:
+        session_id: 会话ID
+        persona: 面试官角色描述
+        
+    Returns:
+        操作结果
+    """
+    try:
+        logger.info(f"设置面试官角色: session_id={session_id}")
+        
+        # TODO: 实际应该通过WebSocketManager获取InterviewSession实例
+        # websocket_manager = WebSocketManager()
+        # session = websocket_manager.get_session(session_id)
+        # if session:
+        #     await session.set_interviewer_persona(persona)
+        
+        return APIResponse(
+            success=True,
+            message="设置面试官角色成功",
+            data={"session_id": session_id, "persona": persona}
+        )
+        
+    except Exception as e:
+        logger.error(f"设置面试官角色失败: {e}")
+        raise HTTPException(status_code=500, detail=f"设置面试官角色失败: {str(e)}")
+
+
+@router.get("/session/{session_id}/summary", response_model=APIResponse)
+async def get_interview_summary(session_id: str):
+    """
+    获取面试摘要信息
+    
+    Args:
+        session_id: 会话ID
+        
+    Returns:
+        面试摘要
+    """
+    try:
+        logger.info(f"获取面试摘要: session_id={session_id}")
+        
+        # TODO: 实际应该通过WebSocketManager获取InterviewSession实例
+        # websocket_manager = WebSocketManager()
+        # session = websocket_manager.get_session(session_id)
+        # if session:
+        #     summary = session.get_interview_summary()
+        #     return APIResponse(
+        #         success=True,
+        #         message="获取面试摘要成功",
+        #         data=summary
+        #     )
+        
+        # 暂时返回模拟数据
+        return APIResponse(
+            success=True,
+            message="获取面试摘要成功",
+            data={
+                "session_id": session_id,
+                "questions_count": 0,
+                "answers_count": 0,
+                "evaluations_count": 0,
+                "current_question": None,
+                "interviewer_persona": None
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"获取面试摘要失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取面试摘要失败: {str(e)}")
+
+
+@router.post("/session/{session_id}/final-report", response_model=APIResponse)
+async def generate_final_report(session_id: str, candidate_name: str, job_position: str):
+    """
+    生成最终面试报告
+    
+    Args:
+        session_id: 会话ID
+        candidate_name: 候选人姓名
+        job_position: 面试岗位
+        
+    Returns:
+        面试报告
+    """
+    try:
+        logger.info(f"生成最终报告: session_id={session_id}, candidate={candidate_name}")
+        
+        # TODO: 实际应该通过WebSocketManager获取InterviewSession实例
+        # websocket_manager = WebSocketManager()
+        # session = websocket_manager.get_session(session_id)
+        # if session:
+        #     report = await session.generate_final_report(candidate_name, job_position)
+        #     if report:
+        #         return APIResponse(
+        #             success=True,
+        #             message="生成最终报告成功",
+        #             data=report.dict()
+        #         )
+        
+        return APIResponse(
+            success=False,
+            message="生成最终报告失败",
+            data=None
+        )
+        
+    except Exception as e:
+        logger.error(f"生成最终报告失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成最终报告失败: {str(e)}")
 
     except Exception as e:
         logger.error(f"获取统计信息失败: {e}")

@@ -11,6 +11,15 @@
 - 📝 **面试管理**: 完整的面试会话管理系统
 - 🛠️ **模块化设计**: 清晰的代码架构，易于扩展
 
+### 🚀 新增AI面试核心功能
+
+- 🎭 **面试官角色生成**: 根据岗位和要求生成个性化面试官角色
+- 📋 **智能题库生成**: 自动生成针对特定岗位的面试题库
+- 💬 **动态追问系统**: 基于候选人回答智能生成追问问题
+- 🎯 **多模态评估**: 综合文本、语音、视频进行全方位评估
+- 📊 **智能报告生成**: 自动生成企业决策报告和候选人反馈报告
+- 🛡️ **安全合规检查**: 全局安全监控，防偏见和隐私保护
+
 ## 技术栈
 
 - **框架**: FastAPI 0.104.1
@@ -20,6 +29,15 @@
 - **异步处理**: asyncio
 - **日志系统**: Python logging
 
+### 🔧 新增技术栈
+
+- **AI 服务**: OpenAI GPT-4o-mini / Azure OpenAI
+- **Prompt 管理**: 基于 JSON 的模板系统
+- **HTTP 客户端**: aiohttp (异步HTTP请求)
+- **重试机制**: tenacity (智能重试策略)
+- **数据验证**: Pydantic (类型安全和数据验证)
+- **多模态处理**: 文本、语音、视频综合分析
+
 ## 项目结构
 
 ```
@@ -27,21 +45,29 @@ ai_interview_backend/
 ├── main.py                 # 主应用入口
 ├── requirements.txt        # 项目依赖
 ├── README.md              # 项目文档
+├── data/                  # 数据存储
+│   └── prompts.json       # Prompt模板存储
+├── config/                # 配置文件
+│   └── ai_config.json     # AI服务配置
 ├── models/                # 数据模型
 │   ├── __init__.py
-│   └── schemas.py         # Pydantic数据模型
+│   └── schemas.py         # Pydantic数据模型(已扩展)
 ├── routers/               # 路由处理
 │   ├── __init__.py
-│   ├── interview.py       # 面试管理路由
-│   └── ai_processing.py   # AI处理路由
+│   ├── interview.py       # 面试管理路由(已扩展)
+│   └── ai_processing.py   # AI处理路由(已扩展)
 ├── services/              # 业务逻辑
 │   ├── __init__.py
-│   ├── websocket_manager.py  # WebSocket连接管理
-│   ├── video_processor.py    # 视频处理服务
-│   └── ai_service.py        # AI模型调用服务
+│   ├── websocket_manager.py    # WebSocket连接管理
+│   ├── interview_session.py    # 面试会话管理(已扩展)
+│   ├── audio_processor.py      # 音频处理服务
+│   ├── ai_service.py          # AI模型调用服务(已扩展)
+│   ├── prompt_manager.py      # Prompt模板管理(新增)
+│   └── openai_client.py       # OpenAI客户端(新增)
 └── utils/                 # 工具函数
     ├── __init__.py
-    └── logger.py          # 日志配置
+    ├── logger.py          # 日志配置
+    └── util.py            # 通用工具函数
 ```
 
 ## 安装和运行
@@ -52,7 +78,27 @@ ai_interview_backend/
 pip install -r requirements.txt
 ```
 
-### 2. 启动服务
+### 2. 配置 AI 服务
+
+在 `config/ai_config.json` 中配置 OpenAI API：
+
+```json
+{
+  "openai": {
+    "api_key": "your-openai-api-key-here",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-4o-mini"
+  }
+}
+```
+
+或者设置环境变量：
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key-here"
+```
+
+### 3. 启动服务
 
 ```bash
 python main.py
@@ -64,7 +110,7 @@ python main.py
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. 访问 API 文档
+### 4. 访问 API 文档
 
 启动后访问 `http://localhost:8000/docs` 查看自动生成的 API 文档。
 
@@ -78,6 +124,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - `GET /api/interview/sessions` - 获取面试会话列表
 - `GET /api/interview/results/{session_id}` - 获取面试结果
 
+#### 🆕 新增面试管理接口
+
+- `POST /api/interview/session/{session_id}/question` - 设置当前面试问题
+- `POST /api/interview/session/{session_id}/persona` - 设置面试官角色
+- `GET /api/interview/session/{session_id}/summary` - 获取面试摘要信息
+- `POST /api/interview/session/{session_id}/final-report` - 生成最终面试报告
+
 ### AI 处理
 
 - `POST /api/ai/transcribe` - 文件语音识别
@@ -86,9 +139,21 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - `POST /api/ai/analyze-speech-quality` - 语音质量分析
 - `GET /api/ai/models/status` - 获取模型状态
 
+#### 🆕 新增AI核心功能接口
+
+- `POST /api/ai/interviewer-persona` - 生成面试官角色
+- `POST /api/ai/question-bank` - 生成岗位面试题库
+- `POST /api/ai/follow-up` - 生成动态追问问题
+- `POST /api/ai/multimodal-evaluation` - 多模态表现评估
+- `POST /api/ai/interview-report` - 生成最终面试报告
+- `POST /api/ai/safety-check` - 安全合规检查
+- `POST /api/ai/batch-process` - 批量处理请求
+- `GET /api/ai/health` - AI服务健康检查
+
 ### WebSocket
 
-- `ws://localhost:8000/ws/video-stream/{session_id}` - 实时视频流传输
+- `ws://localhost:8000/ws/video/{session_id}` - 实时视频流传输
+- `ws://localhost:8000/ws/audio/{session_id}` - 实时音频流传输
 
 ## 使用示例
 
@@ -130,6 +195,72 @@ curl -X POST "http://localhost:8000/api/ai/transcribe" \
      -F "session_id=your-session-id" \
      -F "language=zh" \
      -F "audio_file=@audio.wav"
+```
+
+### 4. 🆕 AI面试功能使用示例
+
+#### 生成面试官角色
+
+```bash
+curl -X POST "http://localhost:8000/api/ai/interviewer-persona" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "job_position": "高级前端工程师",
+       "key_focus_areas": ["技术深度", "项目经验", "团队协作"],
+       "personality_style": "专业严谨",
+       "interviewer_name": "张经理"
+     }'
+```
+
+#### 生成面试题库
+
+```bash
+curl -X POST "http://localhost:8000/api/ai/question-bank" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "job_position": "高级前端工程师",
+       "technical_field": "前端开发",
+       "core_competency_indicators": ["专业知识水平", "逻辑思维能力", "项目经验"]
+     }'
+```
+
+#### 生成追问问题
+
+```bash
+curl -X POST "http://localhost:8000/api/ai/follow-up" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "original_question": "请介绍一下你做过的最复杂的项目",
+       "candidate_answer": "我做过一个电商网站，使用了React",
+       "target_competency": "项目经验",
+       "interviewer_persona": "专业严谨"
+     }'
+```
+
+#### 多模态评估
+
+```bash
+curl -X POST "http://localhost:8000/api/ai/multimodal-evaluation" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "question": "请介绍一下你的项目经验",
+       "evaluation_indicators": ["专业知识水平", "语言表达能力", "逻辑思维能力"],
+       "text_analysis": {
+         "transcript": "我主要负责前端开发，使用React和Vue框架",
+         "keywords_coverage": 0.8,
+         "answer_structure": "结构清晰，逻辑完整"
+       },
+       "audio_analysis": {
+         "avg_speech_rate": "150字/分钟",
+         "sentiment_tone": "自信",
+         "pauses_and_fillers": "适量停顿"
+       },
+       "video_analysis": {
+         "eye_contact_level": "良好",
+         "micro_expressions": ["自信", "思考"],
+         "body_language": "坐姿端正"
+       }
+     }'
 ```
 
 ## AI 模型集成

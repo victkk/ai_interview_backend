@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 import base64
 from models.schemas import (
@@ -9,6 +9,20 @@ from models.schemas import (
     ProcessingType,
     WhisperResponse,
     VideoAnalysisResponse,
+    # 新增的模型
+    InterviewerPersonaRequest,
+    InterviewerPersona,
+    QuestionBankRequest,
+    QuestionBankResponse,
+    FollowUpRequest,
+    FollowUpResponse,
+    MultimodalEvaluationRequest,
+    MultimodalEvaluationResponse,
+    InterviewReportRequest,
+    InterviewReportResponse,
+    BatchProcessingRequest,
+    BatchProcessingResponse,
+    AIServiceResponse,
 )
 from services.ai_service import AIService
 
@@ -347,3 +361,263 @@ async def batch_process_audio(
     except Exception as e:
         logger.error(f"批量处理失败: {e}")
         raise HTTPException(status_code=500, detail=f"批量处理失败: {str(e)}")
+
+
+# ================================
+# 新增的六大核心功能API接口
+# ================================
+
+@router.post("/interviewer-persona", response_model=APIResponse)
+async def generate_interviewer_persona(request: InterviewerPersonaRequest):
+    """
+    生成面试官角色
+    
+    Args:
+        request: 面试官角色生成请求
+        
+    Returns:
+        面试官角色信息
+    """
+    try:
+        logger.info(f"开始生成面试官角色: job_position={request.job_position}")
+        
+        result = await ai_service.generate_interviewer_persona(request)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="面试官角色生成成功",
+                data=result.dict()
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="面试官角色生成失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"生成面试官角色失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成面试官角色失败: {str(e)}")
+
+
+@router.post("/question-bank", response_model=APIResponse)
+async def generate_question_bank(request: QuestionBankRequest):
+    """
+    生成岗位面试题库
+    
+    Args:
+        request: 题库生成请求
+        
+    Returns:
+        面试题库
+    """
+    try:
+        logger.info(f"开始生成面试题库: job_position={request.job_position}")
+        
+        result = await ai_service.generate_question_bank(request)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="面试题库生成成功",
+                data=result.dict()
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="面试题库生成失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"生成面试题库失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成面试题库失败: {str(e)}")
+
+
+@router.post("/follow-up", response_model=APIResponse)
+async def generate_follow_up_questions(request: FollowUpRequest):
+    """
+    生成动态追问问题
+    
+    Args:
+        request: 追问请求
+        
+    Returns:
+        追问问题列表
+    """
+    try:
+        logger.info(f"开始生成追问问题: original_question={request.original_question[:50]}...")
+        
+        result = await ai_service.generate_follow_up_questions(request)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="追问问题生成成功",
+                data=result.dict()
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="追问问题生成失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"生成追问问题失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成追问问题失败: {str(e)}")
+
+
+@router.post("/multimodal-evaluation", response_model=APIResponse)
+async def evaluate_multimodal_performance(request: MultimodalEvaluationRequest):
+    """
+    多模态表现综合评估
+    
+    Args:
+        request: 多模态评估请求
+        
+    Returns:
+        评估结果
+    """
+    try:
+        logger.info(f"开始多模态表现评估: question={request.question[:50]}...")
+        
+        result = await ai_service.evaluate_multimodal_performance(request)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="多模态表现评估成功",
+                data=result.dict()
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="多模态表现评估失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"多模态表现评估失败: {e}")
+        raise HTTPException(status_code=500, detail=f"多模态表现评估失败: {str(e)}")
+
+
+@router.post("/interview-report", response_model=APIResponse)
+async def generate_interview_report(request: InterviewReportRequest):
+    """
+    生成最终面试报告
+    
+    Args:
+        request: 面试报告请求
+        
+    Returns:
+        面试报告
+    """
+    try:
+        logger.info(f"开始生成面试报告: candidate={request.candidate_name}, position={request.job_position}")
+        
+        result = await ai_service.generate_interview_report(request)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="面试报告生成成功",
+                data=result.dict()
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="面试报告生成失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"生成面试报告失败: {e}")
+        raise HTTPException(status_code=500, detail=f"生成面试报告失败: {str(e)}")
+
+
+@router.post("/safety-check", response_model=APIResponse)
+async def safety_compliance_check(content: str = Form(...)):
+    """
+    安全合规检查
+    
+    Args:
+        content: 需要检查的内容
+        
+    Returns:
+        安全检查结果
+    """
+    try:
+        logger.info(f"开始安全合规检查: content_length={len(content)}")
+        
+        result = await ai_service.safety_compliance_check(content)
+        
+        if result:
+            return APIResponse(
+                success=True,
+                message="安全合规检查完成",
+                data=result
+            )
+        else:
+            return APIResponse(
+                success=False,
+                message="安全合规检查失败",
+                data=None
+            )
+            
+    except Exception as e:
+        logger.error(f"安全合规检查失败: {e}")
+        raise HTTPException(status_code=500, detail=f"安全合规检查失败: {str(e)}")
+
+
+@router.post("/batch-process", response_model=APIResponse)
+async def batch_process_requests(request: BatchProcessingRequest):
+    """
+    批量处理请求
+    
+    Args:
+        request: 批量处理请求
+        
+    Returns:
+        批量处理结果
+    """
+    try:
+        logger.info(f"开始批量处理: requests_count={len(request.requests)}")
+        
+        result = await ai_service.batch_process_requests(
+            request.requests, 
+            request.batch_id
+        )
+        
+        return APIResponse(
+            success=True,
+            message="批量处理完成",
+            data=result
+        )
+        
+    except Exception as e:
+        logger.error(f"批量处理失败: {e}")
+        raise HTTPException(status_code=500, detail=f"批量处理失败: {str(e)}")
+
+
+@router.get("/health", response_model=APIResponse)
+async def ai_health_check():
+    """
+    AI服务健康检查
+    
+    Returns:
+        健康状态信息
+    """
+    try:
+        result = await ai_service.health_check()
+        
+        return APIResponse(
+            success=True,
+            message="AI服务健康检查完成",
+            data=result
+        )
+        
+    except Exception as e:
+        logger.error(f"AI服务健康检查失败: {e}")
+        raise HTTPException(status_code=500, detail=f"AI服务健康检查失败: {str(e)}")
